@@ -69,6 +69,7 @@ singularity run -e --nv catnus_v1.0.0.sif \
 | `--modality` | MRI sequence type: either `mprage`, `fgatir`, or `t1map` | ✅ |
 | `--device` | Computation device: either `gpu` or `cpu` (default: `gpu`) | ⭕ |
 | `--save_intermediate` | Save intermediate processing results (default: `False`) | ⭕ |
+
 ✅ Required; ⭕ Optional.
 
 ### Outputs
