@@ -70,16 +70,24 @@ RUN pip install --no-cache-dir \
         numpy \
         scikit-learn \
         scikit-image \
-        git+https://github.com/lianruizuo/haca3@${HACA3_COMMIT}
+        git+https://github.com/lianruizuo/haca3@${HACA3_COMMIT} && \
+    find /opt/python -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/python -type f -name "*.pyc" -delete && \
+    find /opt/python -type f -name "*.pyo" -delete
 
 # Set up HD-BET
 RUN pip install --no-cache-dir git+https://github.com/MIC-DKFZ/HD-BET.git@${HDBET_COMMIT}
 COPY setup_hdbet.py /opt
 RUN python /opt/setup_hdbet.py && \
-    rm -f /opt/setup_hdbet.py
+    rm -f /opt/setup_hdbet.py && \
+    find /opt/python -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/python -type f -name "*.pyc" -delete
 
 # Install intensity-normalization with antspy dependency
-RUN pip install --no-cache-dir "intensity-normalization[ants]"
+RUN pip install --no-cache-dir "intensity-normalization[ants]" && \
+    find /opt/python -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/python -type f -name "*.pyc" -delete && \
+    find /opt/python -type f -name "*.pyo" -delete
 
 # Copy registration atlas to /opt/atlas
 COPY atlas /opt/atlas
@@ -100,6 +108,14 @@ COPY --chmod=0755 preprocessing /opt/run/preprocessing/
 COPY --chmod=0755 utils /opt/run/
 COPY --chmod=0755 model_weights/*.pt /opt/run/
 COPY --chmod=0755 run-catnus /opt/run/
+
+# Final cleanup to reduce image size
+RUN find /opt -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt -type f -name "*.pyc" -delete && \
+    find /opt -type f -name "*.pyo" -delete && \
+    find /tmp -mindepth 1 -delete 2>/dev/null || true && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # Set the default command to be executed when the container starts
 ENTRYPOINT ["run-catnus"]
