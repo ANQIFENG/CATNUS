@@ -3,7 +3,7 @@ ARG PYTORCH_VERSION=2.2.1
 ARG CUDA_VERSION=11.8
 ARG CUDNN_VERSION=8
 ARG HDBET_COMMIT=ae16068
-ARG PYTHON_VERSION=3.11.6
+ARG PYTHON_VERSION=3.10.13
 ARG DEBIAN_VERSION=bookworm
 ARG ANTS_VERSION=v2.5.0
 ARG RADIFOX_VERSION=1.0.5
@@ -61,8 +61,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy PyTorch libraries from pytorch image
-COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torch /opt/python/lib/python3.11/site-packages/torch
-COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torchvision /opt/python/lib/python3.11/site-packages/torchvision
+COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torch /opt/python/lib/python3.10/site-packages/torch
+COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torchvision /opt/python/lib/python3.10/site-packages/torchvision
 
 # Install necessary Python libraries
 RUN pip install --no-cache-dir \
