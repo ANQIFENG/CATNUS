@@ -50,15 +50,13 @@ RUN echo -e "{\n \
     \"HACA3_COMMIT\": \"${HACA3_COMMIT}\"\n \
 }" > /opt/manifest.json
 
-# Update the package list and install system dependencies
+# Update the package list and install system dependencies including Git LFS
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y ca-certificates git curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Git LFS
-RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-    apt-get update && \
-    apt-get install -y git-lfs && \
+    apt-get install --no-install-recommends -y \
+        ca-certificates \
+        git \
+        git-lfs \
+        curl && \
     git lfs install && \
     rm -rf /var/lib/apt/lists/*
 
