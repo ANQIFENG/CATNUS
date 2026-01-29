@@ -57,8 +57,10 @@ RUN apt-get update && \
 
 # Install Git LFS
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-    apt-get install git-lfs && \
-    git lfs install
+    apt-get update && \
+    apt-get install -y git-lfs && \
+    git lfs install && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy PyTorch libraries from pytorch image
 COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torch /opt/python/lib/python3.11/site-packages/torch
