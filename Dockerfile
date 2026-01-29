@@ -11,8 +11,7 @@ ARG NIBABEL_VERSION=4.0.1
 ARG SCIPY_VERSION=1.8.1
 ARG HACA3_COMMIT=8c3f53c
 
-# Set base images: pytorch, ants, python and debian
-FROM pytorch/pytorch:${PYTORCH_VERSION}-cuda${CUDA_VERSION}-cudnn${CUDNN_VERSION}-runtime as pytorch
+# Set base images: ants, python and debian
 FROM antsx/ants:${ANTS_VERSION} as ants
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION}
 
@@ -60,12 +59,10 @@ RUN apt-get update && \
     git lfs install && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy PyTorch libraries from pytorch image
-COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torch /opt/python/lib/python3.10/site-packages/torch
-COPY --from=pytorch /opt/conda/lib/python3.10/site-packages/torchvision /opt/python/lib/python3.10/site-packages/torchvision
-
-# Install necessary Python libraries
+# Install necessary Python libraries including PyTorch
 RUN pip install --no-cache-dir \
+        torch==2.2.1 \
+        torchvision==0.17.1 \
         radifox==${RADIFOX_VERSION} \
         nibabel==${NIBABEL_VERSION} \
         scipy==${SCIPY_VERSION} \
