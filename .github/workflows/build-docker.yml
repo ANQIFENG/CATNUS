@@ -70,7 +70,7 @@ jobs:
 
       - name: Build Singularity container
         run: |
-          singularity build catnus_${{ github.ref_name }}.sif docker://${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          singularity build catnus_${{ github.ref_name }}.sif docker://ghcr.io/anqifeng/catnus:${{ github.ref_name }}
           ls -lh catnus_${{ github.ref_name }}.sif
 
       - name: Create Release and Upload Singularity
