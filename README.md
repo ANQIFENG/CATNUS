@@ -146,7 +146,7 @@ We provide **sample data** from one subject for validation, approved by IRB. Ple
 - **MPRAGE**: `mtbi_data_mni_mprage.nii.gz`
 - **FGATIR**: `mtbi_data_mni_fgatir.nii.gz`
 
-**Note**: MPRAGE and FGATIR in original space are directly acquired images. MNI space data are registered to MNI space. The T1 map is subsequently calculated from the registered MPRAGE–FGATIR pairs rather than directly acquired. In practice, we **highly recommend** using MNI space data as inputs for much better performance. For detailed acquisition parameters, see [`data/DATA_INFO.md`](data/DATA_INFO.md).
+**Note**: MPRAGE and FGATIR in original space are directly acquired images. MNI space data are registered to MNI space. The T1 map is subsequently calculated from the registered MPRAGE–FGATIR pairs rather than directly acquired. In practice, we **highly recommend** using MNI space data as inputs for much better performance. For detailed acquisition parameters, see [`data/data_info.md`](data/data_info.md).
 
 ## Citation 📄
 
