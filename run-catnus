@@ -1,0 +1,251 @@
+#!/usr/bin/env python
+import os
+import sys
+import shutil
+import argparse
+import logging
+import glob
+from pathlib import Path
+from radifox.records import ProcessingModule
+
+sys.path.append('/opt/run')
+from test import main as run_test
+
+sys.path.append('/opt/run/preprocessing')
+from run_hdbet import run_hdbet
+from change_img_dtype import change_image_dtype
+from run_subject_registration import register_mprage_to_mni
+from apply_reference_min import apply_reference_min
+from run_n4_bias_field_correction import bias_correction
+from generate_bgmask import create_bg_mask
+from run_fcm_normalize import run_fcm_normalize
+from white_matter_norm import wm_norm
+from apply_inverse_transform import apply_inverse_transform
+
+from haca3.test import main as haca3_test
+
+
+class CATNUS(ProcessingModule):
+
+    name = "catnus"
+    version = "1.0.0"
+
+    @staticmethod
+    def cli(args=None):
+        parser = argparse.ArgumentParser(description='Thalamic Nuclei Segmentation with Preprocessing and Harmonization')
+        parser.add_argument('--data_path', type=Path, required=True, help='Path to the input image.')
+        parser.add_argument('--out_dir', type=str, required=True, help='Directory to save the output files.')
+        parser.add_argument('--modality', type=str, required=True, choices=['fgatir', 'mprage', 't1map'], help='Input modality: fgatir, mprage, or t1map.')
+        parser.add_argument('--device', '-d', type=str, default='gpu', choices=['gpu', 'cpu'], help='Specify device to use (gpu or cpu).')
+        parser.add_argument('--save_intermediate', action='store_true', default=False, help='Flag to save intermediate results in tmp directory.')
+        parsed = parser.parse_args(args)
+
+        if not parsed.data_path.exists():
+            parser.error(f"Error: The specified data path '{parsed.data_path}' does not exist.")
+
+        model_weight = Path(f"/opt/run/checkpoint_{parsed.modality}.pt")
+        if not model_weight.exists():
+            parser.error(f"Pre-trained weights for modality '{parsed.modality}' do not exist at {model_weight}. "
+                        "Error in container creation; please contact an admin.")
+
+        return {
+            "data_path": parsed.data_path,
+            "model_weight": model_weight,
+            "out_dir": parsed.out_dir,
+            "modality": parsed.modality,
+            "device": parsed.device,
+            "save_intermediate": parsed.save_intermediate,
+        }
+
+    @staticmethod
+    def run(data_path: Path, model_weight: Path, out_dir: str, modality: str, device: str, save_intermediate: bool):
+
+        # Convert paths to absolute paths
+        data_path = str(data_path.resolve())
+        basename = os.path.basename(data_path).replace('.nii.gz', '').replace('.nii', '')
+
+        # Create output directory
+        os.makedirs(out_dir, exist_ok=True)
+        logging.info(f"Output directory: {out_dir}")
+
+        # Create proc directory for final outputs
+        proc_dir = os.path.join(out_dir, 'proc')
+        os.makedirs(proc_dir, exist_ok=True)
+
+        # Create temporary directory
+        tmp_dir = os.path.join(out_dir, 'tmp')
+        os.makedirs(tmp_dir, exist_ok=True)
+        logging.info(f"Temporary directory: {tmp_dir}")
+
+        # Copy input image to tmp directory
+        input_tmp = os.path.join(tmp_dir, f'{basename}.nii.gz')
+        shutil.copy(data_path, input_tmp)
+        logging.info(f"Copied input image to: {input_tmp}")
+
+        # ============================================================
+        # PREPROCESSING PIPELINE
+        # ============================================================
+        
+        # Step 1: Brain extraction using HD-BET
+        logging.info("Step 1: Running HD-BET for brain extraction...")
+        hdbet_out = input_tmp.replace('.nii.gz', '_brain.nii.gz')
+        run_hdbet(input_tmp, hdbet_out)
+
+        # Step 2: Convert image data type to float32
+        logging.info("Step 2: Changing image dtype to float32...")
+        float32_out = input_tmp.replace('.nii.gz', '_float32.nii.gz')
+        change_image_dtype(input_tmp, float32_out)
+
+        # Step 3: Register image to MNI space
+        logging.info("Step 3: Registering image to MNI space...")
+        register_mprage_to_mni(float32_out, atlas_dir="/opt/atlas", output_dir=tmp_dir)
+        reg_out = float32_out.replace('.nii.gz', '_reg.nii.gz')
+        transform_mat = float32_out.replace('.nii.gz', '_reg.mat')
+
+        # Step 4: Apply original minimum value to registered image
+        logging.info("Step 4: Applying original minimum value to registered image...")
+        reg_thre_out = reg_out.replace('.nii.gz', '_thre.nii.gz')
+        apply_reference_min(reg_out, float32_out, reg_thre_out)
+
+        # Step 5: N4 bias field correction
+        logging.info("Step 5: Performing N4 Bias Field Correction...")
+        bias_correction(reg_thre_out, out_dir=tmp_dir)
+        n4_out = reg_thre_out.replace('.nii.gz', '_n4.nii.gz')
+
+        # Step 6: Brain extraction on registered data using HD-BET
+        logging.info("Step 6: Running HD-BET on registered data...")
+        hdbet_reg_out = n4_out.replace('.nii.gz', '_brain.nii.gz')
+        run_hdbet(n4_out, hdbet_reg_out)
+        brain_mask_reg = n4_out.replace('.nii.gz', '_brain_mask.nii.gz')
+
+        # Step 7: Generate background mask
+        logging.info("Step 7: Extracting background mask...")
+        bg_mask_out = n4_out.replace('.nii.gz', '_bgmask.nii.gz')
+        create_bg_mask(n4_out, bg_mask_out)
+
+        # Step 8: White matter normalization and Harmonization (ONLY for MPRAGE modality)
+        if modality == 'mprage':
+            logging.info("Step 8a: Calculating white matter mask...")
+            wm_membership_out = n4_out.replace('.nii.gz', '_wm_membership.nii.gz')
+            run_fcm_normalize(n4_out, brain_mask_reg, wm_membership_out)
+            
+            logging.info("Step 8b: Performing white matter mean normalization...")
+            wmn_out = n4_out.replace('.nii.gz', '_wmn.nii.gz')
+            wm_mask_out = n4_out.replace('.nii.gz', '_wm_mask.nii.gz')
+            
+            # Apply white matter normalization
+            wm_norm(n4_out, wm_membership_out, wmn_out, wm_mask_out, VALUE=1000, THRESHOLD=0.40)
+            
+            # Step 8c: HACA3 Harmonization 
+            logging.info("Step 8c: Performing HACA3 harmonization...")
+            
+            # Find target image in container
+            target_images = glob.glob("/opt/run/haca3_target/*.nii.gz")
+            if not target_images:
+                raise FileNotFoundError("Target image not found in /opt/run/haca3_target/. ")
+            target_image = target_images[0]
+            logging.info(f"Using target image: {target_image}")
+            
+            harmonized_out = wmn_out.replace('.nii.gz', '_haca3.nii.gz')
+            
+            haca3_args = [
+                "--in-path", wmn_out,
+                "--target-image", target_image,
+                "--harmonization-model", "/opt/run/haca3_models/harmonization_v1.0.9.pt",
+                "--fusion-model", "/opt/run/haca3_models/fusion_v1.0.9.pt",
+                "--out-path", harmonized_out,
+                "--intermediate-out-dir", tmp_dir,
+            ]
+            
+            haca3_test(haca3_args)
+            
+            # HACA3 outputs with suffix _harmonized_fusion.nii.gz
+            haca3_output = harmonized_out.replace('.nii.gz', '_harmonized_fusion.nii.gz')
+            if os.path.exists(haca3_output):
+                # Rename to our expected name
+                os.rename(haca3_output, harmonized_out)
+                segmentation_input = harmonized_out
+                logging.info(f"Harmonization completed. Using harmonized image for segmentation.")
+            else:
+                logging.error(f"HACA3 output not found at {haca3_output}. Cannot proceed.")
+                raise FileNotFoundError(f"HACA3 harmonization output not found.")
+            
+            logging.info(f"Segmentation input: {segmentation_input}")
+        else:
+            # For fgatir and t1map modalities, use N4-corrected image directly
+            segmentation_input = n4_out
+            logging.info(f"Segmentation input: {segmentation_input}")
+
+        # ============================================================
+        # SEGMENTATION
+        # ============================================================
+        
+        # Step 9: Run CATNUS thalamic nuclei segmentation
+        logging.info(f"Step 9: Running CATNUS segmentation with {modality} model...")
+        seg_out_dir = tmp_dir
+        
+        args = [
+            "--data_path", segmentation_input,
+            "--model_weight", str(model_weight),
+            "--out_dir", seg_out_dir,
+            "--modality", modality,
+            "--device", device
+        ]
+        
+        run_test(args)
+        
+        # Get segmentation output file path
+        seg_basename = os.path.basename(segmentation_input).replace('.nii.gz', '').replace('.nii', '')
+        seg_mni_out = os.path.join(seg_out_dir, f"{seg_basename}_catnus-{modality}.nii.gz")
+
+        # ============================================================
+        # POST-PROCESSING: INVERSE TRANSFORM
+        # ============================================================
+        
+        # Step 10: Apply inverse transform to bring segmentation back to original space
+        logging.info("Step 10: Applying inverse transform to segmentation...")
+        seg_org_out = os.path.join(tmp_dir, f"{basename}_catnus-{modality}-org.nii.gz")
+        apply_inverse_transform(
+            segmentation_mni=seg_mni_out,
+            original_image=input_tmp, 
+            transform_matrix=transform_mat,
+            output_path=seg_org_out
+        )
+
+        # ============================================================
+        # SAVE FINAL OUTPUTS
+        # ============================================================
+        
+        logging.info("Saving final outputs to proc directory...")
+        
+        # Copy 4 final output files to proc directory
+        final_files = {
+            reg_out: os.path.join(proc_dir, f"{basename}_reg.nii.gz"),
+            transform_mat: os.path.join(proc_dir, f"{basename}_reg.mat"),
+            seg_mni_out: os.path.join(proc_dir, f"{basename}_catnus-{modality}-mni.nii.gz"),
+            seg_org_out: os.path.join(proc_dir, f"{basename}_catnus-{modality}-org.nii.gz"),
+        }
+        
+        for src, dst in final_files.items():
+            if os.path.exists(src):
+                shutil.copy(src, dst)
+                logging.info(f"Copied: {os.path.basename(dst)}")
+
+        # Clean up temporary directory if not saving intermediate results
+        if not save_intermediate:
+            shutil.rmtree(tmp_dir)
+            logging.info("Processing completed and temporary files cleaned up.")
+        else:
+            logging.info(f"Processing completed. Intermediate files saved in: {tmp_dir}")
+
+        # Return paths to final output files
+        return {
+            'registered_image': Path(proc_dir) / f"{basename}_reg.nii.gz",
+            'transform_matrix': Path(proc_dir) / f"{basename}_reg.mat",
+            'segmentation_mni': Path(proc_dir) / f"{basename}_catnus-{modality}-mni.nii.gz",
+            'segmentation_org': Path(proc_dir) / f"{basename}_catnus-{modality}-org.nii.gz",
+        }
+
+
+if __name__ == '__main__':
+    CATNUS()
