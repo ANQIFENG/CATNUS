@@ -25,11 +25,11 @@ CATNUS performs the following processing steps:
 
 ### Important Notes
 
-**Segmentation Quality**: Although we provide segmentation results in both MNI and original space, we **highly recommend using the MNI space segmentation**. The inverse transformation to original space involves interpolation, which can significantly degrade segmentation quality due to the small size of thalamic nuclei. We also provide the registered MNI space image for your reference.
+⭐**Segmentation Quality**: Although we provide segmentation results in both MNI and original space, we **highly recommend using the MNI space segmentation**. The inverse transformation to original space involves interpolation, which can significantly degrade segmentation quality due to the small size of thalamic nuclei. We also provide the registered MNI space image for your reference.
 
-**Harmonization Status**: Currently, HACA3 harmonization is only available for MPRAGE. Harmonization methods for FGATIR and T1 map are under development and will be extended in future releases.
+⭐**Harmonization Status**: Currently, HACA3 harmonization is only available for MPRAGE. Harmonization methods for FGATIR and T1 map are under development and will be extended in future releases.
 
-**T1 Map Calculation**: If you have paired MPRAGE and FGATIR images and want to calculate T1 maps, you can use our [multi-TI image calculation pipeline](https://github.com/ANQIFENG/multi-TI-image-calc-pipeline)!
+⭐**T1 Map Calculation**: If you have paired MPRAGE and FGATIR images and want to calculate T1 maps, you can use our [T1map calculation pipeline](https://github.com/ANQIFENG/multi-TI-image-calc-pipeline)!
 
 ## How to Run 🏃
 
