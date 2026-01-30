@@ -39,10 +39,10 @@ CATNUS performs the following processing steps:
 
 ### Installation
 
-Download the Singularity container from GitHub Releases:
+Download the Singularity container of the CATNUS model from [here](https://iacl.ece.jhu.edu/~amy/catnus/catnus_v1.0.0.sif) or use:
 
 ```bash
-wget https://github.com/[your-org]/CATNUS/releases/download/v1.0.0/catnus_v1.0.0.sif
+wget https://iacl.ece.jhu.edu/~amy/catnus/catnus_v1.0.0.sif
 ```
 
 ### Usage
